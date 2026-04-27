@@ -20,23 +20,20 @@ const orderRouter = require("./routes/order");
 const linepayRouter = require("./routes/linepay");
 const cartRouter = require("./routes/cart");
 
-require("dotenv").config();
-// console.log('GOOGLE_APPLICATION_CREDENTIALS:', process.env.GOOGLE_APPLICATION_CREDENTIALS);
-console.log("MONGO_URI:", process.env.MONGO_URI); // 測試環境變數是否正確載入
-
-// Initialize MongoDB connection
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("Local MongoDB connected successfully"))
-  .catch((err) => console.log("MongoDB connection error:", err));
-
-mongoose.connection.on("error", (err) => {
-  console.error("MongoDB connection error:", err);
-});
-
-mongoose.connection.once("open", () => {
+// Initialize MongoDB connection (in-memory for dev, real URI for production)
+const connectDB = async () => {
+  let uri = process.env.MONGO_URI;
+  if (!uri) {
+    const { MongoMemoryServer } = require("mongodb-memory-server");
+    const mongod = await MongoMemoryServer.create();
+    uri = mongod.getUri();
+    console.log("Using in-memory MongoDB:", uri);
+  }
+  await mongoose.connect(uri);
   console.log("MongoDB connected successfully");
-});
+};
+
+connectDB().catch((err) => console.error("MongoDB connection error:", err));
 
 const app = express();
 const server = http.createServer(app);
@@ -56,24 +53,10 @@ server
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
-    methods: ["GET", "POST", "PATCH", "DELETE", "PUT"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
   }),
 );
-
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
-    methods: ["GET", "PUT", "POST", "PATCH", "DELETE"],
-    credentials: true,
-  }),
-);
-
-// app.use(cors({
-//   origin: process.env.FRONTEND_URL,
-//   credentials: true
-// }));
-app.use(cors());
 app.use(logger("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

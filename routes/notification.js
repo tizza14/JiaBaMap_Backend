@@ -9,5 +9,6 @@ router.get('/:userId', NotificationController.getNotifications);
 router.get('/:userId/unread', NotificationController.getUnreadCount);
 router.patch('/read/:notificationId', NotificationController.markAsRead);
 router.patch('/:userId/read-multiple', NotificationController.markMultipleAsRead);
+router.patch('/:userId/read-all', NotificationController.markAllAsRead);
 
 module.exports = router;

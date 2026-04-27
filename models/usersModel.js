@@ -1,16 +1,20 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
-// 定義使用者資料結構
 const userSchema = new mongoose.Schema(
   {
     email: {
       type: String,
       required: true,
+      unique: true,
+    },
+    password: {
+      type: String, // 只有本地帳號才有，Google 登入不設密碼
     },
     googleId: {
       type: String,
       unique: true,
+      sparse: true, // 允許多筆 null（本地帳號沒有 googleId）
     },
     name: {
       type: String,
@@ -25,22 +29,20 @@ const userSchema = new mongoose.Schema(
       {
         type: String,
       },
-    ]
+    ],
   },
   {
     timestamps: true,
   },
 );
 
-// 密碼加密
 userSchema.pre("save", async function (next) {
-  if (this.isModified("password")) {
+  if (this.isModified("password") && this.password) {
     this.password = await bcrypt.hash(this.password, 10);
   }
   next();
 });
 
-// 密碼比對驗證
 userSchema.methods.comparePassword = async function (password) {
   return await bcrypt.compare(password, this.password);
 };

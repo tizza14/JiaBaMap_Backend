@@ -4,11 +4,9 @@ const { Storage } = require("@google-cloud/storage");
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 
 function generateToken(payload) {
-  console.log(payload);
   return jwt.sign(payload, process.env.JWT_SECRET, {
     issuer: "jiabamap",
-    // FIXME
-    // expiresIn: "1 day",
+    expiresIn: "7d",
   });
 }
 

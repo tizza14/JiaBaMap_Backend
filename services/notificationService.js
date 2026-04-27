@@ -1,5 +1,4 @@
 const Notification = require('../models/notificationModel');
-const NotificationSetting = require('../models/notificationSettingModel');
 const { getIO } = require('../socketConfig');
 const schedule = require('node-schedule');
 
@@ -43,6 +42,12 @@ class NotificationService {
     }
     
     return notification;
+  }
+
+  static async markAllAsRead(userId) {
+    await Notification.updateMany({ userId, read: false }, { read: true });
+    const io = getIO();
+    io.to(userId.toString()).emit('readAllNotifications');
   }
 
   static async cleanupOldNotifications() {
