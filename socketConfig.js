@@ -29,6 +29,9 @@ const initializeSocket = (server) => {
 
     socket.on("disconnect", () => {
       console.log("A user disconnected");
+      for (const room of socket.rooms) {
+        if (room !== socket.id) socket.leave(room);
+      }
     });
   });
 

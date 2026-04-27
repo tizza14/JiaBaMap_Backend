@@ -3,6 +3,7 @@ const path = require("path");
 const cookieParser = require("cookie-parser");
 const logger = require("morgan");
 const cors = require("cors");
+const helmet = require("helmet");
 const mongoose = require("mongoose");
 const http = require("http");
 
@@ -41,15 +42,7 @@ const server = http.createServer(app);
 const { initializeSocket } = require("./socketConfig");
 initializeSocket(server);
 
-const port = 3200;
-server
-  .listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-  })
-  .on("error", (err) => {
-    console.error("Error starting server:", err);
-  });
-
+app.use(helmet());
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
@@ -77,4 +70,15 @@ app.use("/payments/linepay", linepayRouter);
 app.use("/cart", cartRouter);
 // app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-module.exports = app;
+if (require.main === module) {
+  const port = 3200;
+  server
+    .listen(port, () => {
+      console.log(`Server is running on port ${port}`);
+    })
+    .on("error", (err) => {
+      console.error("Error starting server:", err);
+    });
+}
+
+module.exports = { app, server };

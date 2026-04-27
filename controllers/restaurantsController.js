@@ -1,15 +1,39 @@
 const axios = require("axios");
+const { cache, TTL, rateLimiters, dailyQuota } = require("../utils/cache");
 
-//依關鍵字與地點搜尋
+const getIP = (req) => req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.socket.remoteAddress;
+
+// 限速檢查：cache hit 時跳過，只有真正要打 API 才檢查
+const checkLimits = (req, res, limiterKey) => {
+  const ip = getIP(req);
+
+  if (!rateLimiters[limiterKey].check(ip)) {
+    res.status(429).json({ message: "請求過於頻繁，請稍後再試" });
+    return false;
+  }
+
+  if (!dailyQuota.consume()) {
+    console.warn(`[Quota] 今日 Google API 已達上限 ${dailyQuota.limit} 次`);
+    res.status(503).json({ message: "今日查詢次數已達上限，請明天再試" });
+    return false;
+  }
+
+  return true;
+};
+
+// 搜尋
 const searchByKeywordAndLocation = async (req, res, _next) => {
-  // get query parameter
   const { keyword, lat, lng } = req.query;
 
-  // if (!keyword || !lat || !lng) {
-  //   res.status(400).json({ message: "Missing parameter" });
-  //   return;
-  // }
-  // send request to Google API
+  const roundedLat = parseFloat(lat).toFixed(2);
+  const roundedLng = parseFloat(lng).toFixed(2);
+  const cacheKey = `search:${keyword}:${roundedLat}:${roundedLng}`;
+
+  const cached = cache.get(cacheKey);
+  if (cached) return res.json(cached); // cache hit，不計入任何限制
+
+  if (!checkLimits(req, res, "search")) return;
+
   try {
     const body = {
       textQuery: keyword,
@@ -18,10 +42,7 @@ const searchByKeywordAndLocation = async (req, res, _next) => {
       pageSize: 15,
       locationBias: {
         circle: {
-          center: {
-            latitude: lat,
-            longitude: lng,
-          },
+          center: { latitude: lat, longitude: lng },
           radius: 2000.0,
         },
       },
@@ -43,9 +64,7 @@ const searchByKeywordAndLocation = async (req, res, _next) => {
     const response = await axios.post(
       "https://places.googleapis.com/v1/places:searchText",
       body,
-      {
-        headers,
-      },
+      { headers },
     );
 
     const places = [];
@@ -59,12 +78,13 @@ const searchByKeywordAndLocation = async (req, res, _next) => {
         address: ele.formattedAddress ?? null,
         startPrice: ele.priceRange?.startPrice?.units ?? null,
         endPrice: ele.priceRange?.endPrice?.units ?? null,
-        photoId:
-          ele.photos.length > 0 ? encodeURIComponent(ele.photos[0].name) : null,
+        photoId: ele.photos?.length > 0 ? encodeURIComponent(ele.photos[0].name) : null,
         lat: ele.location.latitude,
         lng: ele.location.longitude,
       });
     }
+
+    cache.set(cacheKey, places, TTL.SEARCH);
     res.json(places);
   } catch (err) {
     console.log(err);
@@ -72,15 +92,24 @@ const searchByKeywordAndLocation = async (req, res, _next) => {
   }
 };
 
-//取得staticmap
+// Static map
 const getStaticmap = async (req, res, _next) => {
-  // get query parameter
   const { lat, lng } = req.query;
 
   if (!lat || !lng) {
     res.status(400).json({ message: "Missing lat or lng" });
     return;
   }
+
+  const cacheKey = `staticmap:${parseFloat(lat).toFixed(3)}:${parseFloat(lng).toFixed(3)}`;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    res.contentType("image/png").send(cached);
+    return;
+  }
+
+  if (!checkLimits(req, res, "staticmap")) return;
+
   try {
     const response = await axios.get(
       "https://maps.googleapis.com/maps/api/staticmap",
@@ -95,27 +124,28 @@ const getStaticmap = async (req, res, _next) => {
         },
       },
     );
-    //prepare data
+    cache.set(cacheKey, Buffer.from(response.data), TTL.STATIC_MAP);
     res.contentType("image/png").send(response.data);
   } catch (err) {
-    // console.log(err);
     res.status(404).json({});
   }
 };
 
-//依店家place_id取得詳細資訊
+// 餐廳詳情
 const detailOfRestaurant = async (req, res, _next) => {
-  // get query parameter
   const id = req.params.id;
+  const cacheKey = `detail:${id}`;
 
-  // send request to Google API
+  const cached = cache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  if (!checkLimits(req, res, "detail")) return;
+
   try {
     const response = await axios.get(
       `https://places.googleapis.com/v1/places/${id}`,
       {
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         params: {
           fields: [
             "displayName",
@@ -138,33 +168,29 @@ const detailOfRestaurant = async (req, res, _next) => {
 
     const photoNum = 2;
     const photoNames = [];
-    for (let i = 0; i < photoNum; i++) {
+    for (let i = 0; i < Math.min(photoNum, response.data.photos?.length ?? 0); i++) {
       photoNames.push(response.data.photos[i].name);
     }
 
-    // prepare data
     const data = {
       displayName: response.data.displayName.text ?? null,
       rating: response.data.rating ?? null,
       userRatingCount: response.data.userRatingCount ?? null,
       startPrice: response.data.priceRange?.startPrice?.units ?? null,
       endPrice: response.data.priceRange?.endPrice?.units ?? null,
-      weekDayDescriptions:
-        response.data.currentOpeningHours?.weekdayDescriptions ?? null,
+      weekDayDescriptions: response.data.currentOpeningHours?.weekdayDescriptions ?? null,
       formattedAddress: response.data.formattedAddress ?? null,
       websiteUri: response.data.websiteUri ?? null,
       nationalPhoneNumber: response.data.nationalPhoneNumber ?? null,
       googleMapsUri: response.data.googleMapsUri,
       openNow: response.data.currentOpeningHours?.openNow ?? null,
-      // 為了避免photoId中的 “/”
-      // 影響後端路由的path parameter的取得,
-      // 所以先做encode
       photoIds: photoNames.map((id) => encodeURIComponent(id)),
       lat: response.data.location.latitude,
       lng: response.data.location.longitude,
-      placeId: id
+      placeId: id,
     };
 
+    cache.set(cacheKey, data, TTL.DETAIL);
     res.json(data);
   } catch (err) {
     console.log(err);
@@ -172,12 +198,19 @@ const detailOfRestaurant = async (req, res, _next) => {
   }
 };
 
-//取得店家照片
+// 照片
 const restaurantPhoto = async (req, res, _next) => {
-  // get query parameter
   const photoId = req.params.id;
+  const cacheKey = `photo:${photoId}`;
 
-  // send request to Google API
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    res.contentType(cached.contentType).send(cached.data);
+    return;
+  }
+
+  if (!checkLimits(req, res, "photo")) return;
+
   try {
     const decodedPhotoId = decodeURIComponent(photoId);
     const response = await axios.get(
@@ -192,10 +225,10 @@ const restaurantPhoto = async (req, res, _next) => {
       },
     );
 
-    // prepare data
-    res.contentType(response.headers["content-type"]).send(response.data);
+    const contentType = response.headers["content-type"];
+    cache.set(cacheKey, { data: Buffer.from(response.data), contentType }, TTL.PHOTO);
+    res.contentType(contentType).send(response.data);
   } catch (err) {
-    // TODO: error handling
     console.log(err);
     res.status(404).json({});
   }

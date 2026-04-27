@@ -12,14 +12,15 @@ const verifyToken = (req, res, next) => {
   }
 
   const token = authorizationHeader.split(" ")[1];
-  const isValid = jwt.verify(token, process.env.JWT_SECRET);
-  if (!isValid) {
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
     res.status(401).json({ msg: "Token is invalid. Please login again." });
     return;
   }
 
-  const payload = jwt.decode(token);
-  req.body.id = payload.id;
+  req.body.id = decoded.id;
   next();
 };
 
@@ -56,10 +57,18 @@ const googleLogin = async (req, res) => {
 };
 
 // ── 一般用戶：Email 註冊 ───────────────────────────────────────────
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const userRegister = async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ message: "請填寫姓名、Email 和密碼" });
+  }
+  if (!EMAIL_RE.test(email)) {
+    return res.status(400).json({ message: "Email 格式不正確" });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ message: "密碼至少需要 8 個字元" });
   }
 
   try {
