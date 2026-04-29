@@ -24,6 +24,7 @@ const checkLimits = (req, res, limiterKey) => {
 // 搜尋
 const searchByKeywordAndLocation = async (req, res, _next) => {
   const { keyword, lat, lng } = req.query;
+  console.log(`[Search Request] keyword: ${keyword}, lat: ${lat}, lng: ${lng}`);
 
   const roundedLat = parseFloat(lat).toFixed(2);
   const roundedLng = parseFloat(lng).toFixed(2);
@@ -68,27 +69,33 @@ const searchByKeywordAndLocation = async (req, res, _next) => {
     );
 
     const places = [];
-    for (const ele of response.data.places) {
-      places.push({
-        id: ele.id,
-        name: ele.displayName.text,
-        rating: ele.rating ?? null,
-        userRatingCount: ele.userRatingCount ?? null,
-        openNow: ele.currentOpeningHours?.openNow ?? null,
-        address: ele.formattedAddress ?? null,
-        startPrice: ele.priceRange?.startPrice?.units ?? null,
-        endPrice: ele.priceRange?.endPrice?.units ?? null,
-        photoId: ele.photos?.length > 0 ? encodeURIComponent(ele.photos[0].name) : null,
-        lat: ele.location.latitude,
-        lng: ele.location.longitude,
-      });
+    if (response.data.places && Array.isArray(response.data.places)) {
+      for (const ele of response.data.places) {
+        places.push({
+          id: ele.id,
+          name: ele.displayName.text,
+          rating: ele.rating ?? null,
+          userRatingCount: ele.userRatingCount ?? null,
+          openNow: ele.currentOpeningHours?.openNow ?? null,
+          address: ele.formattedAddress ?? null,
+          startPrice: ele.priceRange?.startPrice?.units ?? null,
+          endPrice: ele.priceRange?.endPrice?.units ?? null,
+          photoId: ele.photos?.length > 0 ? encodeURIComponent(ele.photos[0].name) : null,
+          lat: ele.location.latitude,
+          lng: ele.location.longitude,
+        });
+      }
     }
 
     cache.set(cacheKey, places, TTL.SEARCH);
     res.json(places);
   } catch (err) {
-    console.log(err);
-    res.status(404).json([]);
+    console.error("[Search Error]:", err.response?.data || err.message);
+    const statusCode = err.response?.status || 500;
+    res.status(statusCode).json({
+      message: "搜尋失敗",
+      error: err.response?.data?.error?.message || err.message,
+    });
   }
 };
 
@@ -104,6 +111,7 @@ const getStaticmap = async (req, res, _next) => {
   const cacheKey = `staticmap:${parseFloat(lat).toFixed(3)}:${parseFloat(lng).toFixed(3)}`;
   const cached = cache.get(cacheKey);
   if (cached) {
+    res.setHeader("Cache-Control", "public, max-age=86400");
     res.contentType("image/png").send(cached);
     return;
   }
@@ -125,6 +133,7 @@ const getStaticmap = async (req, res, _next) => {
       },
     );
     cache.set(cacheKey, Buffer.from(response.data), TTL.STATIC_MAP);
+    res.setHeader("Cache-Control", "public, max-age=86400");
     res.contentType("image/png").send(response.data);
   } catch (err) {
     res.status(404).json({});
@@ -201,10 +210,16 @@ const detailOfRestaurant = async (req, res, _next) => {
 // 照片
 const restaurantPhoto = async (req, res, _next) => {
   const photoId = req.params.id;
-  const cacheKey = `photo:${photoId}`;
+  const { maxWidth, maxHeight } = req.query;
+  console.log(`[Photo Request] Received photoId: ${photoId}, size: ${maxWidth}x${maxHeight}`);
+  
+  // Cache key includes size to avoid returning wrong size from cache
+  const cacheKey = `photo:${photoId}:${maxWidth || "default"}:${maxHeight || "default"}`;
 
   const cached = cache.get(cacheKey);
   if (cached) {
+    console.log(`[Photo Cache Hit] ${photoId}`);
+    res.setHeader("Cache-Control", "public, max-age=86400");
     res.contentType(cached.contentType).send(cached.data);
     return;
   }
@@ -213,23 +228,26 @@ const restaurantPhoto = async (req, res, _next) => {
 
   try {
     const decodedPhotoId = decodeURIComponent(photoId);
+    console.log(`[Photo Request] Decoded photoId: ${decodedPhotoId}`);
     const response = await axios.get(
       `https://places.googleapis.com/v1/${decodedPhotoId}/media`,
       {
         responseType: "arraybuffer",
         params: {
           key: process.env.API_KEY,
-          maxHeightPx: 1024,
-          maxWidthPx: 1024,
+          maxHeightPx: maxHeight || 1024,
+          maxWidthPx: maxWidth || 1024,
         },
       },
     );
 
     const contentType = response.headers["content-type"];
+    console.log(`[Photo Success] Content-Type: ${contentType}`);
     cache.set(cacheKey, { data: Buffer.from(response.data), contentType }, TTL.PHOTO);
+    res.setHeader("Cache-Control", "public, max-age=86400");
     res.contentType(contentType).send(response.data);
   } catch (err) {
-    console.log(err);
+    console.error(`[Photo Error] ${photoId}:`, err.response?.data || err.message);
     res.status(404).json({});
   }
 };

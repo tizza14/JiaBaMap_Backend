@@ -1,0 +1,10 @@
+node_modules
+npm-debug.log*
+.git
+.gitignore
+.env
+.env.*
+coverage
+__test__
+swagger-output.json
+README.md

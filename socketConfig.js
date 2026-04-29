@@ -1,10 +1,18 @@
 const { Server } = require('socket.io');
 let io;
 
+const parseAllowedOrigins = () => {
+  const origins = process.env.FRONTEND_URLS || process.env.FRONTEND_URL;
+  return (origins || "http://localhost:5173")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+};
+
 const initializeSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: process.env.FRONTEND_URL,
+      origin: parseAllowedOrigins(),
       methods: ["GET", "POST"],
       credentials: true
     }
