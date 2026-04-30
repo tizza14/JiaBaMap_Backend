@@ -1,7 +1,7 @@
-const Notification = require('../models/notificationModel');
-const NotificationService = require('../services/notificationService');
-const User = require('../models/usersModel');
-const { getIO } = require('../socketConfig');
+const Notification = require("../models/notificationModel");
+const NotificationService = require("../services/notificationService");
+const User = require("../models/usersModel");
+const { getIO } = require("../socketConfig");
 
 const createNotification = async ({
   receiverId,
@@ -9,11 +9,15 @@ const createNotification = async ({
   actionType,
   relatedId,
   relatedType,
-  additionalData = {}
+  additionalData = {},
 }) => {
   try {
-    // 如果沒有提供使用者名稱或圖片，嘗試從資料庫抓取
-    let userName = additionalData.userName || additionalData.commenterName || additionalData.replierName || null;
+    const userNameFromPayload =
+      additionalData.userName ||
+      additionalData.commenterName ||
+      additionalData.replierName ||
+      null;
+    let userName = userNameFromPayload;
     let userImg = additionalData.userImg || null;
 
     if (!userName && actionUserId) {
@@ -29,16 +33,16 @@ const createNotification = async ({
       actionType,
       relatedType,
       relatedId,
-      userName: userName,
-      userImg: userImg,
+      userName,
+      userImg,
       metadata: {
         ...additionalData,
-        originalContent: additionalData.content
-      }
+        originalContent: additionalData.content,
+      },
     });
 
     const io = getIO();
-    io.to(receiverId.toString()).emit('newNotification', {
+    io.to(receiverId.toString()).emit("newNotification", {
       notification: {
         _id: notification._id,
         userId: notification.userId,
@@ -50,13 +54,13 @@ const createNotification = async ({
         metadata: notification.metadata,
         read: notification.read,
         timestamp: notification.timestamp,
-        createdAt: notification.createdAt
-      }
+        createdAt: notification.createdAt,
+      },
     });
 
     return notification;
   } catch (error) {
-    console.error('建立通知時發生錯誤:', error);
+    console.error("Error creating notification:", error);
     throw error;
   }
 };
@@ -66,7 +70,11 @@ class NotificationController {
     try {
       const { userId } = req.params;
       const { page = 1, limit = 20 } = req.query;
-      const notifications = await NotificationService.getUserNotifications(userId, page, limit);
+      const notifications = await NotificationService.getUserNotifications(
+        userId,
+        page,
+        limit,
+      );
       res.status(200).json(notifications);
     } catch (error) {
       res.status(500).json({ message: "Error fetching notifications", error });
@@ -88,7 +96,10 @@ class NotificationController {
       const { notificationId } = req.params;
       const userId = req.user.id;
 
-      const notification = await NotificationService.markAsRead(userId, notificationId);
+      const notification = await NotificationService.markAsRead(
+        userId,
+        notificationId,
+      );
 
       if (!notification) {
         return res.status(404).json({ message: "Notification not found" });

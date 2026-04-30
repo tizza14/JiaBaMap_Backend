@@ -35,9 +35,9 @@ router.delete("/:id", articleController.deleteArticle);
 router.post("/:id/like", articleController.toggleLike, notificationMiddleWare.notifyOnArticleLike);
 
 // 留言
-router.post("/:id/comments", articleController.addComment, notificationMiddleWare.notifyOnCommentCreate);
+router.post("/:id/comments", articleController.addComment, notificationMiddleWare.notifyOnArticleCommentCreate);
 router.delete("/:articleId/comments/:commentId", articleController.deleteComment);
-router.post("/:articleId/comments/:commentId/like", articleController.toggleCommentLike, notificationMiddleWare.notifyOnCommentLike);
+router.post("/:articleId/comments/:commentId/like", articleController.toggleCommentLike, notificationMiddleWare.notifyOnArticleCommentLike);
 
 // 回覆
 router.post("/:articleId/comments/:commentId/replies", articleController.addReply, notificationMiddleWare.notifyOnArticleReplyCreate);

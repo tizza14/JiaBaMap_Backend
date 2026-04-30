@@ -3,6 +3,8 @@ const Article = require("../../models/articlelistModel");
 const Store = require("../../models/storeModel");
 const notificationController = require("../notificationController");
 
+const isSameUser = (a, b) => a && b && a.toString() === b.toString();
+
 // 新增評論後觸發通知
 const notifyOnCommentCreate = async (req, res, next) => {
   try {
@@ -15,13 +17,16 @@ const notifyOnCommentCreate = async (req, res, next) => {
 
     // 以 placeId 找到已註冊店家，取得其 MongoDB _id 作為通知接收者
     const store = await Store.findOne({ placeId }).select("_id").lean();
-    if (store) {
+    if (store && !isSameUser(store._id, userId)) {
       await notificationController.createNotification({
         receiverId: store._id.toString(),
         actionUserId: userId,
         actionType: "comment",
         relatedId: savedComment._id,
         relatedType: "restaurant_comment",
+        additionalData: {
+          placeId,
+        },
       });
     }
 
@@ -44,13 +49,16 @@ const notifyOnCommentLike = async (req, res, next) => {
 
     const comment = await Comment.findById(commentId);
     
-    if (comment) {
+    if (comment && !isSameUser(comment.userId, userId)) {
       await notificationController.createNotification({
         receiverId: comment.userId,
         actionUserId: userId,
         actionType: "like",
         relatedId: commentId,
         relatedType: "restaurant_comment_like",
+        additionalData: {
+          placeId: comment.placeId,
+        },
       });
     }
 
@@ -64,11 +72,15 @@ const notifyOnCommentLike = async (req, res, next) => {
 // 文章新增評論後觸發通知
 const notifyOnArticleCommentCreate = async (req, res, next) => {
   try {
-    const { articleId } = req.params;
+    const articleId = req.params.articleId || req.params.id;
     const { userId, user } = req.body;
 
     const article = await Article.findById(articleId);
     if (!article) {
+      return next();
+    }
+
+    if (isSameUser(article.userId, userId)) {
       return next();
     }
 
@@ -136,6 +148,10 @@ const notifyOnArticleCommentLike = async (req, res, next) => {
       return next();
     }
 
+    if (isSameUser(comment.userId, userId)) {
+      return next();
+    }
+
     await notificationController.createNotification({
       receiverId: comment.userId,
       actionUserId: userId,
@@ -167,6 +183,10 @@ const notifyOnArticleReplyCreate = async (req, res, next) => {
 
     const comment = article.comments.id(commentId);
     if (!comment) {
+      return next();
+    }
+
+    if (isSameUser(comment.userId, userId)) {
       return next();
     }
 
@@ -207,6 +227,10 @@ const notifyOnArticleReplyLike = async (req, res, next) => {
 
     const reply = comment.replies.id(replyId);
     if (!reply) {
+      return next();
+    }
+
+    if (isSameUser(reply.userId, userId)) {
       return next();
     }
 
