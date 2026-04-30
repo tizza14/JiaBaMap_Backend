@@ -58,6 +58,10 @@ $ npm run dev
 Please go to `http://localhost:3000/api-docs`
 to interact with the API document.
 
+## Deployment
+
+Deployment status, environment variables, and the Render/Vercel/AWS rollout checklist are tracked in [DEPLOYMENT_PROGRESS.md](./DEPLOYMENT_PROGRESS.md).
+
 ## Authors
 
 👤 **JiaBaMap Developers**
