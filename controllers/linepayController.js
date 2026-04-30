@@ -6,11 +6,11 @@ const LINE_PAY_API_URL = process.env.LINE_PAY_API_URL;
 const BACKEND_NGROK_URL = process.env.BACKEND_NGROK_URL;
 const FRONTEND_URL = process.env.FRONTEND_URL;
 
-//1. 付款請求
+// 付款請求
 const Payment = async (req, res) => {
   const { packages, orderId } = req.body;
   try {
-    let response = await requestOnlineAPI({
+    const response = await requestOnlineAPI({
       method: "POST",
       baseUrl: LINE_PAY_API_URL,
       apiPath: "/v3/payments/request",
@@ -31,33 +31,43 @@ const Payment = async (req, res) => {
   }
 };
 
-//2. 付款授權
+// 付款授權
 const Confirm = async (req, res) => {
   const { transactionId, orderId } = req.query;
   try {
     const order = await Order.findById(orderId);
-    const totalAmount = order.totalAmount;
+    if (!order) {
+      return res.redirect(`${FRONTEND_URL}/checkout-detail?orderId=${orderId}&status=failed`);
+    }
 
-    let response = await requestOnlineAPI({
+    const response = await requestOnlineAPI({
       method: "POST",
       baseUrl: LINE_PAY_API_URL,
       apiPath: `/v3/payments/${transactionId}/confirm`,
       data: {
-        amount: totalAmount,
+        amount: order.totalAmount,
         currency: "TWD",
       },
     });
-    console.log(response);
+
     if (response?.returnCode === "0000") {
-      const redirectUrl = `${FRONTEND_URL}/checkout-detail?transactionId=${transactionId}&orderId=${orderId}&status=success`;
-      res.redirect(redirectUrl);
+      await Order.findByIdAndUpdate(orderId, { isPaid: true });
+      return res.redirect(`${FRONTEND_URL}/checkout-detail?orderId=${orderId}&status=success`);
     } else {
-      const redirectUrl = `${FRONTEND_URL}/checkout-detail?transactionId=${transactionId}&orderId=${orderId}&status=failed`;
-      res.redirect(redirectUrl);
+      return res.redirect(`${FRONTEND_URL}/checkout-detail?orderId=${orderId}&status=failed`);
     }
   } catch (error) {
     res.status(500).json({ "Confirm Error": error.message });
   }
 };
 
-module.exports = { Payment, Confirm };
+// 付款取消
+const Cancel = (req, res) => {
+  const { orderId } = req.query;
+  const target = orderId
+    ? `${FRONTEND_URL}/checkout-detail?orderId=${orderId}&status=cancelled`
+    : `${FRONTEND_URL}`;
+  res.redirect(target);
+};
+
+module.exports = { Payment, Confirm, Cancel };

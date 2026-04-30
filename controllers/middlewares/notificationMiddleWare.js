@@ -1,5 +1,6 @@
 const Comment = require("../../models/commentsModel");
 const Article = require("../../models/articlelistModel");
+const Store = require("../../models/storeModel");
 const notificationController = require("../notificationController");
 
 // 新增評論後觸發通知
@@ -12,14 +13,17 @@ const notifyOnCommentCreate = async (req, res, next) => {
       return next();
     }
 
-    // 創建通知
-    await notificationController.createNotification({
-      receiverId: placeId, // 餐廳相關的接收者
-      actionUserId: userId,
-      actionType: "comment",
-      relatedId: savedComment._id,
-      relatedType: "restaurant_comment",
-    });
+    // 以 placeId 找到已註冊店家，取得其 MongoDB _id 作為通知接收者
+    const store = await Store.findOne({ placeId }).select("_id").lean();
+    if (store) {
+      await notificationController.createNotification({
+        receiverId: store._id.toString(),
+        actionUserId: userId,
+        actionType: "comment",
+        relatedId: savedComment._id,
+        relatedType: "restaurant_comment",
+      });
+    }
 
     next();
   } catch (error) {
@@ -91,10 +95,16 @@ const notifyOnArticleLike = async (req, res, next) => {
   try {
     const { id: articleId } = req.params;
     const { userId } = req.body;
+    const likeResult = res.locals.likeResult;
 
     const article = await Article.findById(articleId);
-    if (!article) {
-      return next();
+    if (!article || !likeResult || !likeResult.isNewLike) {
+      return; // 如果文章不存在、按讚失敗或只是收回讚，則不發通知
+    }
+
+    // 自己按自己讚不通知
+    if (article.userId.toString() === userId.toString()) {
+      return;
     }
 
     await notificationController.createNotification({
@@ -105,10 +115,8 @@ const notifyOnArticleLike = async (req, res, next) => {
       relatedType: "article_like"
     });
 
-    next();
   } catch (error) {
     console.error("創建文章按讚通知失敗:", error);
-    next(error);
   }
 };
 

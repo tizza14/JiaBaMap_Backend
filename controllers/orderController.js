@@ -3,6 +3,7 @@ const OrderDetail = require("../models/orderDetailModel");
 const Store = require("../models/storeModel");
 const Menu = require("../models/menuModel");
 const mongoose = require("mongoose");
+const { createNotification } = require("./notificationController");
 
 //計算總金額
 const calculateTotalAmount = async (items) => {
@@ -70,6 +71,25 @@ const createOrder = async (req, res) => {
     spec: item.spec,
   }));
   const savedOrder = await OrderDetail.insertMany(orderDetails);
+
+  // 建立通知發送給店家
+  try {
+    await createNotification({
+      receiverId: storeId,
+      actionUserId: customerId,
+      actionType: "new_order",
+      relatedId: order._id,
+      relatedType: "order",
+      additionalData: {
+        userName: "新顧客",
+        orderTotal: totalAmount,
+        storeName: storeName
+      }
+    });
+  } catch (err) {
+    console.error("發送訂單通知給店家失敗:", err);
+  }
+
   try {
     res.status(201).json({
       message: order.isNew ? "成功建立訂單" : "成功更新訂單",
@@ -106,7 +126,6 @@ const getOrders = async (req, res) => {
     }));
     res.status(200).json(response);
   } catch (error) {
-    console.log(error);
     res.status(500).json({ message: "取得訂單發生錯誤，請稍後再試" });
   }
 };
@@ -138,17 +157,17 @@ const getOrderDetails = async (req, res) => {
       storeAddress: store.storeAddress,
       storePhone: store.storePhone,
       orderId: order._id,
-      restaurantName: order.storeId.name,
       customerId: order.customerId,
-      phone: order.storeId.phone,
-      address: order.storeId.address,
       totalAmount: order.totalAmount,
+      pickupName: order.pickupName,
+      pickupPhone: order.pickupPhone,
+      pickupTime: order.pickupTime,
+      isPaid: order.isPaid,
       items: orderDetails.items,
       spec: orderDetails.spec,
     };
     res.status(200).json(response);
   } catch (error) {
-    console.log(error);
     res.status(500).json({ message: "取得詳細訂單發生錯誤，請稍後再試" });
   }
 };
@@ -156,23 +175,26 @@ const getOrderDetails = async (req, res) => {
 //更新訂單
 const updateOrder = async (req, res) => {
   const { orderId } = req.params;
-  const { pickupTime, items } = req.body;
+  const { pickupTime, pickupName, pickupPhone, items } = req.body;
   let updatedFields = {};
   const order = await Order.findById(orderId);
   if (!order) {
     return res.status(404).json({ message: "訂單不存在" });
   }
   if (pickupTime) {
-    updatedFields.pickupTime = pickupTime;
+    updatedFields.pickupTime = new Date(pickupTime);
+  }
+  if (pickupName !== undefined) {
+    updatedFields.pickupName = pickupName;
+  }
+  if (pickupPhone !== undefined) {
+    updatedFields.pickupPhone = pickupPhone;
   }
   if (items && items.length > 0) {
     let totalAmount = await calculateTotalAmount(items);
     updatedFields.totalAmount = totalAmount;
 
     for (let item of items) {
-      console.log(
-        `Updating OrderDetail for Order ID: ${order._id}, Product ID: ${item.productId}`,
-      );
       await OrderDetail.findOneAndUpdate(
         { orderId: order._id, productId: item.productId },
         { $set: { quantity: item.quantity, note: item.note, spec: item.spec } },
@@ -212,10 +234,147 @@ const deleteOrder = async (req, res) => {
   }
 };
 
+// 取得店家所有訂單
+const getStoreOrders = async (req, res) => {
+  const { storeId } = req.params;
+  const { status, page = 1, limit = 20 } = req.query;
+
+  try {
+    const filter = {
+      storeId: new mongoose.Types.ObjectId(storeId),
+      isDeleted: false,
+    };
+    if (status) filter.status = status;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [orders, totalCount] = await Promise.all([
+      Order.find(filter)
+        .sort({ orderTime: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Order.countDocuments(filter),
+    ]);
+
+    res.status(200).json({
+      totalCount,
+      totalPages: Math.ceil(totalCount / parseInt(limit)),
+      currentPage: parseInt(page),
+      orders: orders.map((o) => ({
+        orderId: o._id,
+        customerId: o.customerId,
+        totalAmount: o.totalAmount,
+        status: o.status,
+        isPaid: o.isPaid,
+        pickupTime: o.pickupTime,
+        orderTime: o.orderTime,
+        items: o.items,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ message: "取得店家訂單失敗" });
+  }
+};
+
+// 取得店家統計數字（供 Dashboard 使用）
+const getStoreStats = async (req, res) => {
+  const { storeId } = req.params;
+
+  try {
+    const storeObjId = new mongoose.Types.ObjectId(storeId);
+    const baseFilter = { storeId: storeObjId, isDeleted: false };
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [totalOrders, activeOrders, todayRevenue] = await Promise.all([
+      Order.countDocuments(baseFilter),
+      Order.countDocuments({
+        ...baseFilter,
+        status: { $in: ["pending", "preparing", "ready"] },
+      }),
+      Order.aggregate([
+        {
+          $match: {
+            storeId: storeObjId,
+            isDeleted: false,
+            isPaid: true,
+            orderTime: { $gte: todayStart },
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+      ]),
+    ]);
+
+    res.status(200).json({
+      totalOrders,
+      activeOrders,
+      todayRevenue: todayRevenue[0]?.total || 0,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "取得統計資料失敗" });
+  }
+};
+
+// 更新訂單狀態
+const updateOrderStatus = async (req, res) => {
+  const { orderId } = req.params;
+  const { status } = req.body;
+
+  const validStatuses = ["pending", "preparing", "ready", "completed", "cancelled"];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ message: "無效的訂單狀態" });
+  }
+
+  try {
+    const order = await Order.findByIdAndUpdate(
+      orderId,
+      { status },
+      { new: true }
+    );
+    if (!order) {
+      return res.status(404).json({ message: "訂單不存在" });
+    }
+
+    // 發送通知給顧客
+    try {
+      const statusMap = {
+        preparing: "正在製作中",
+        ready: "已完成，請前往取餐",
+        completed: "已完成交易",
+        cancelled: "已被取消"
+      };
+      
+      if (statusMap[status]) {
+        await createNotification({
+          receiverId: order.customerId,
+          actionUserId: order.storeId,
+          actionType: "order_status",
+          relatedId: order._id,
+          relatedType: "order",
+          additionalData: {
+            statusText: statusMap[status],
+            storeName: order.storeName || "餐廳"
+          }
+        });
+      }
+    } catch (err) {
+      console.error("發送狀態通知給顧客失敗:", err);
+    }
+
+    res.status(200).json({ message: "狀態更新成功", status: order.status });
+  } catch (error) {
+    res.status(500).json({ message: "更新狀態失敗" });
+  }
+};
+
 module.exports = {
   createOrder,
   getOrders,
   getOrderDetails,
   updateOrder,
   deleteOrder,
+  getStoreOrders,
+  getStoreStats,
+  updateOrderStatus,
 };

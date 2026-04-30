@@ -17,6 +17,10 @@ class TTLCache {
     return entry.value;
   }
 
+  clear() {
+    this.store.clear();
+  }
+
   startCleanup(intervalMs = 5 * 60 * 1000) {
     setInterval(() => {
       const now = Date.now();

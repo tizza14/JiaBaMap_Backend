@@ -115,6 +115,8 @@ const articleSchema = new mongoose.Schema({
 // 索引
 articleSchema.index({ userId: 1, placeId: 1 });
 articleSchema.index({ createdAt: -1 });
+articleSchema.index({ likesCount: -1 });
+articleSchema.index({ userId: 1, status: 1 });
 
 // 添加方法來檢查用戶是否已按讚
 articleSchema.methods.isLikedBy = function(userId) {

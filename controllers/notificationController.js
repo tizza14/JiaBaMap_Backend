@@ -1,5 +1,6 @@
 const Notification = require('../models/notificationModel');
 const NotificationService = require('../services/notificationService');
+const User = require('../models/usersModel');
 const { getIO } = require('../socketConfig');
 
 const createNotification = async ({
@@ -11,13 +12,25 @@ const createNotification = async ({
   additionalData = {}
 }) => {
   try {
+    // 如果沒有提供使用者名稱或圖片，嘗試從資料庫抓取
+    let userName = additionalData.userName || additionalData.commenterName || additionalData.replierName || null;
+    let userImg = additionalData.userImg || null;
+
+    if (!userName && actionUserId) {
+      const actionUser = await User.findById(actionUserId);
+      if (actionUser) {
+        userName = actionUser.name;
+        userImg = actionUser.profilePicture;
+      }
+    }
+
     const notification = await Notification.create({
       userId: receiverId,
       actionType,
       relatedType,
       relatedId,
-      userName: additionalData.commenterName || additionalData.replierName || null,
-      userImg: additionalData.userImg || null,
+      userName: userName,
+      userImg: userImg,
       metadata: {
         ...additionalData,
         originalContent: additionalData.content

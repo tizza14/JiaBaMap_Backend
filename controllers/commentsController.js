@@ -17,8 +17,6 @@ const getCommentsByRestaurant = async (req, res, _next) => {
 const getCommentsByUser = async (req, res, _next) => {
   try {
     const userId = req.params.id;
-    console.log(userId);
-
     const userComments = await Comment.find({ userId });
     res.json(userComments);
   } catch (err) {
@@ -28,7 +26,7 @@ const getCommentsByUser = async (req, res, _next) => {
 };
 
 //新增一筆評論
-const createComment = async (req, res) => {
+const createComment = async (req, res, next) => {
   try {
     const { userId, placeId, content, rating } = req.body;
 
@@ -44,7 +42,12 @@ const createComment = async (req, res) => {
     //save
     const newComment = new Comment({ ...req.body, photos: photoUrls });
     const savedComment = await newComment.save();
+    
+    // 存入 locals 供通知使用
+    res.locals.savedComment = savedComment;
+
     res.json(savedComment);
+    next();
   } catch (err) {
     console.log(err);
     res.status(400).json({ message: "Cannot post a new comment" });
@@ -101,7 +104,7 @@ const deleteComment = async (req, res, _next) => {
 
 //更新評論讚數
 
-const updateLikes = async (req, res) => {
+const updateLikes = async (req, res, next) => {
   const { id: commentId } = req.params; 
   const { userId } = req.body; 
 
@@ -132,6 +135,10 @@ const updateLikes = async (req, res) => {
       likes: comment.likes,
       likedBy: comment.likedBy,
     });
+
+    if (!hasLiked) {
+      next();
+    }
   } catch (error) {
     console.error("Error updating likes:", error);
     res.status(500).json({ message: "Error updating likes" });

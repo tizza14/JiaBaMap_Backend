@@ -3,7 +3,8 @@ const LinePayController = require("../controllers/linepayController.js");
 
 const router = express.Router();
 
-router.post("/reserve", LinePayController.Payment); //付款請求
-router.get("/confirm", LinePayController.Confirm); //付款授權
+router.post("/reserve", LinePayController.Payment);
+router.get("/confirm", LinePayController.Confirm);
+router.get("/cancel", LinePayController.Cancel);
 
 module.exports = router;

@@ -6,6 +6,13 @@ const cors = require("cors");
 const helmet = require("helmet");
 const mongoose = require("mongoose");
 const http = require("http");
+let swaggerUi, swaggerDocument;
+try {
+  swaggerUi = require("swagger-ui-express");
+  swaggerDocument = require("./swagger-output.json");
+} catch {
+  // swagger-ui-express is a devDependency; not available in production
+}
 
 require("dotenv").config();
 
@@ -55,6 +62,18 @@ const server = http.createServer(app);
 const { initializeSocket } = require("./socketConfig");
 initializeSocket(server);
 
+if (swaggerUi && swaggerDocument) {
+  const buildSwaggerDocument = (req) => ({
+    ...swaggerDocument,
+    host: req.get("host"),
+    schemes: [req.protocol],
+  });
+  app.use("/api-docs", swaggerUi.serve);
+  app.get(["/api-docs", "/api-docs/"], (req, res, next) => {
+    swaggerUi.setup(buildSwaggerDocument(req))(req, res, next);
+  });
+}
+
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -100,7 +119,6 @@ app.use("/store", storeRouter);
 app.use("/order", orderRouter);
 app.use("/payments/linepay", linepayRouter);
 app.use("/cart", cartRouter);
-// app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 if (require.main === module) {
   const port = process.env.PORT || 3200;

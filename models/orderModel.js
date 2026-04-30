@@ -31,9 +31,22 @@ const orderSchema = new mongoose.Schema({
   pickupTime: {
     type: Date,
   },
+  pickupName: {
+    type: String,
+    default: '',
+  },
+  pickupPhone: {
+    type: String,
+    default: '',
+  },
   totalAmount: {
     type: Number,
     required: true,
+  },
+  status: {
+    type: String,
+    enum: ["pending", "preparing", "ready", "completed", "cancelled"],
+    default: "pending",
   },
   isDeleted: {
     type: Boolean,

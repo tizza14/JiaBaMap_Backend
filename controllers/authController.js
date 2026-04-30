@@ -60,7 +60,9 @@ const googleLogin = async (req, res) => {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const userRegister = async (req, res) => {
-  const { name, email, password } = req.body;
+  const name = req.body.name?.trim();
+  const email = req.body.email?.trim();
+  const { password } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ message: "請填寫姓名、Email 和密碼" });
   }
@@ -88,7 +90,8 @@ const userRegister = async (req, res) => {
 
 // ── 一般用戶：Email 登入 ───────────────────────────────────────────
 const userLogin = async (req, res) => {
-  const { email, password } = req.body;
+  const email = req.body.email?.trim();
+  const { password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ message: "請填寫 Email 和密碼" });
   }
@@ -117,7 +120,8 @@ const userLogin = async (req, res) => {
 
 // ── 店家：登入 ─────────────────────────────────────────────────────
 const storeLogin = async (req, res) => {
-  const { username, password } = req.body;
+  const username = req.body.username?.trim();
+  const { password } = req.body;
 
   try {
     const store = await Store.findOne({ username });

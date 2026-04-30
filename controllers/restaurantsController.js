@@ -1,5 +1,6 @@
 const axios = require("axios");
 const { cache, TTL, rateLimiters, dailyQuota } = require("../utils/cache");
+const Store = require("../models/storeModel");
 
 const getIP = (req) => req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.socket.remoteAddress;
 
@@ -24,6 +25,11 @@ const checkLimits = (req, res, limiterKey) => {
 // 搜尋
 const searchByKeywordAndLocation = async (req, res, _next) => {
   const { keyword, lat, lng } = req.query;
+
+  if (!keyword || !lat || !lng) {
+    return res.status(400).json({ message: "Missing parameter" });
+  }
+
   console.log(`[Search Request] keyword: ${keyword}, lat: ${lat}, lng: ${lng}`);
 
   const roundedLat = parseFloat(lat).toFixed(2);
@@ -87,8 +93,14 @@ const searchByKeywordAndLocation = async (req, res, _next) => {
       }
     }
 
-    cache.set(cacheKey, places, TTL.SEARCH);
-    res.json(places);
+    // 查哪些 placeId 已在 JiaBaMap 完成店家註冊（可線上訂購）
+    const placeIds = places.map((p) => p.id);
+    const registeredStores = await Store.find({ placeId: { $in: placeIds } }).select("placeId").lean();
+    const orderableSet = new Set(registeredStores.map((s) => s.placeId));
+    const result = places.map((p) => ({ ...p, isOrderable: orderableSet.has(p.id) }));
+
+    cache.set(cacheKey, result, TTL.SEARCH);
+    res.json(result);
   } catch (err) {
     console.error("[Search Error]:", err.response?.data || err.message);
     const statusCode = err.response?.status || 500;

@@ -10,12 +10,13 @@ const notificationSchema = new mongoose.Schema({
   actionType: { 
     type: String, 
     required: true,
-    enum: ['comment', 'like', 'reply']
+    enum: ['comment', 'like', 'reply', 'new_order', 'order_status']
   },
-  contentType: {
+  relatedType: {
     type: String,
-    enum: ['article', 'comment', 'reply']
+    // 包含文章、評論、回覆、訂單、餐廳等相關類型
   },
+  relatedId: { type: mongoose.Schema.Types.Mixed },
   read: { type: Boolean, default: false },
   timestamp: { type: Date, default: Date.now },
   expiresAt: { type: Date, default: () => new Date(+new Date() + 30*24*60*60*1000) },

@@ -24,10 +24,11 @@ const updateProfile = async (req, res) => {
 
     let url = undefined;
     if (req.file) {
-      //TODO upload photo to GCS
-      const storage = new Storage({
-        projectId: process.env.GOOGLE_PROJECT_ID,
-      });
+      const storageOpts = { projectId: process.env.GOOGLE_PROJECT_ID };
+      if (process.env.GOOGLE_CREDENTIALS_JSON) {
+        storageOpts.credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+      }
+      const storage = new Storage(storageOpts);
       const bucketName = process.env.BUCKET_NAME;
       const fileName = encodeURIComponent(req.file.originalname);
       const objectName = `user/${id}/${fileName}`;
@@ -35,18 +36,18 @@ const updateProfile = async (req, res) => {
       url = `${process.env.GOOGLE_CLOUD_STORAGE_BASE_URL}${bucketName}/${objectName}`;
     }
 
+    const updateFields = { ...req.body };
+    if (url !== undefined) {
+      updateFields.profilePicture = url;
+    }
+
     const userProfile = await User.findByIdAndUpdate(
       id,
-      {
-        ...req.body,
-        profilePicture: url,
-        updatedAt: new Date(),
-      },
-      { new: true }, //回傳已更新的結果
+      updateFields,
+      { new: true },
     );
     res.json(userProfile);
   } catch (err) {
-    console.log(err);
     res.status(400).json({ message: "Cannot update this profile" });
   }
 };
@@ -78,7 +79,7 @@ const delFavorites = async (req, res) => {
     return res.status(404).json({ message: 'User not found' });
   }
 
-  user.favorites = user.favorites.filter((id) => id != placeId);
+  user.favorites = user.favorites.filter((id) => id !== placeId);
   await user.save();
   res.status(200).json({ message: 'Restaurant removed from favorites', favorites: user.favorites });
   

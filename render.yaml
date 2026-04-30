@@ -32,3 +32,5 @@ services:
         value: https://sandbox-api-pay.line.me
       - key: BACKEND_NGROK_URL
         sync: false
+      - key: GOOGLE_CREDENTIALS_JSON
+        sync: false

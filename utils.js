@@ -20,10 +20,16 @@ async function parseGoogleIdToken(token) {
   return payload;
 }
 
+function createStorage() {
+  const opts = { projectId: process.env.GOOGLE_PROJECT_ID };
+  if (process.env.GOOGLE_CREDENTIALS_JSON) {
+    opts.credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+  }
+  return new Storage(opts);
+}
+
 async function uploadPhotos(files) {
-  const storage = new Storage({
-    projectId: process.env.GOOGLE_PROJECT_ID,
-  });
+  const storage = createStorage();
   const photoUrls = [];
   for (const file of files) {
     const bucketName = process.env.BUCKET_NAME;
@@ -37,9 +43,7 @@ async function uploadPhotos(files) {
 }
 
 async function uploadMenuPhotos(files) {
-  const storage = new Storage({
-    projectId: process.env.GOOGLE_PROJECT_ID,
-  });
+  const storage = createStorage();
   const photoUrls = [];
   for (const file of files) {
     const bucketName = process.env.BUCKET_NAME;
