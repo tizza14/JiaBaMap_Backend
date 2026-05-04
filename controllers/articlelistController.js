@@ -1,12 +1,12 @@
 const Article = require('../models/articlelistModel');
-const { Storage } = require("@google-cloud/storage");
+const { createStorage } = require('../utils');
 
 // 上傳圖片到 GCS
 async function uploadArticlePhotos(files) {
-  const storage = new Storage({ projectId: process.env.GOOGLE_PROJECT_ID });
+  const storage = createStorage();
+  const bucketName = process.env.BUCKET_NAME;
   const photoUrls = [];
   for (const file of files) {
-    const bucketName = process.env.BUCKET_NAME;
     const fileName = `article/${Date.now()}_${encodeURIComponent(file.originalname)}`;
     await storage.bucket(bucketName).file(fileName).save(file.buffer);
     photoUrls.push(`${process.env.GOOGLE_CLOUD_STORAGE_BASE_URL}${bucketName}/${fileName}`);
@@ -65,8 +65,8 @@ exports.getAllArticles = async (req, res) => {
 exports.createArticle = async (req, res) => {
   const { userId, placeId, title, content, user, userPhoto, eatdate, restaurantName } = req.body;
 
-  if (!userId || !restaurantName || !title || !content || !eatdate) {
-    return res.status(400).json({ message: "userId、餐廳名稱、標題、內容、用餐日期為必填" });
+  if (!userId || !user || !restaurantName || !title || !content || !eatdate) {
+    return res.status(400).json({ message: "userId、用戶名稱、餐廳名稱、標題、內容、用餐日期為必填" });
   }
 
   try {
@@ -204,7 +204,8 @@ exports.updateArticle = async (req, res) => {
 // 刪除文章
 exports.deleteArticle = async (req, res) => {
   try {
-    await Article.findByIdAndDelete(req.params.id);
+    const deleted = await Article.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: '找不到文章' });
     res.status(200).json({ message: '文章已成功刪除' });
   } catch (error) {
     res.status(500).json({ message: error.message });

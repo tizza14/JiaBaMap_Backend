@@ -166,9 +166,10 @@ const detailOfRestaurant = async (req, res, _next) => {
     const response = await axios.get(
       `https://places.googleapis.com/v1/places/${id}`,
       {
-        headers: { "Content-Type": "application/json" },
-        params: {
-          fields: [
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": process.env.API_KEY,
+          "X-Goog-FieldMask": [
             "displayName",
             "photos",
             "formattedAddress",
@@ -181,9 +182,8 @@ const detailOfRestaurant = async (req, res, _next) => {
             "userRatingCount",
             "location",
           ].join(","),
-          key: process.env.API_KEY,
-          languageCode: "zh-TW",
         },
+        params: { languageCode: "zh-TW" },
       },
     );
 

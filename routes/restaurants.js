@@ -59,6 +59,24 @@ router.get(
 );
 
 router.get(
+  "/photos/:id",
+  controller.restaurantPhoto,
+  /*
+    #swagger.summary = 'Get photo'
+    #swagger.description = 'Endpoint to get a photo from Google API given by the photo ID'
+    */
+
+  /*
+    #swagger.parameters['id'] = {
+      in: 'path',
+      description: 'The ID of a photo assigned by Google Places API',
+      required: 'true',
+      type: 'string',
+    }
+  */
+);
+
+router.get(
   "/:id",
   controller.detailOfRestaurant,
   /* 	
@@ -103,25 +121,6 @@ router.get(
         ]
       },
       description: "Get place detail successfully."
-    }
-  */
-);
-
-//店家照片
-router.get(
-  "/photos/:id",
-  controller.restaurantPhoto,
-  /* 	
-    #swagger.summary = 'Get photo'
-    #swagger.description = 'Endpoint to get a photo from Google API given by the photo ID'
-    */
-
-  /* 
-    #swagger.parameters['id'] = {
-      in: 'path',
-      description: 'The ID of a photo assigned by Google Places API',
-      required: 'true',
-      type: 'string',
     }
   */
 );

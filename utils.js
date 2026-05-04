@@ -59,6 +59,7 @@ async function uploadMenuPhotos(files) {
 module.exports = {
   generateToken,
   parseGoogleIdToken,
+  createStorage,
   uploadPhotos,
   uploadMenuPhotos,
 };

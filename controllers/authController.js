@@ -144,7 +144,12 @@ const storeLogin = async (req, res) => {
 
 // ── 店家：註冊 ─────────────────────────────────────────────────────
 const storeRegister = async (req, res) => {
-  const { username, password, storeName, contactEmail, contactPhone, storeAddress } = req.body;
+  const {
+    username, password, storeName,
+    storeAddress, storePhone, storeIntro, storeTaxId,
+    contactName, contactEmail, contactPhone, placeId,
+  } = req.body;
+
   if (!username || !password || !storeName) {
     return res.status(400).json({ message: "請填寫帳號、密碼和店名" });
   }
@@ -156,12 +161,10 @@ const storeRegister = async (req, res) => {
     }
 
     const store = await Store.create({
-      username,
-      password,
-      storeName,
-      contactEmail,
-      contactPhone,
-      storeAddress,
+      username, password, storeName,
+      storeAddress, storePhone, storeIntro, storeTaxId,
+      contactName, contactEmail, contactPhone,
+      placeId: placeId || "",
     });
 
     const accessToken = generateToken({ id: store._id, placeId: store.placeId });

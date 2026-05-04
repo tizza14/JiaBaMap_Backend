@@ -39,8 +39,11 @@ const parseAllowedOrigins = () => {
 const allowedOrigins = parseAllowedOrigins();
 
 // Initialize MongoDB connection (in-memory for dev, real URI for production)
+const { seedDevData } = require("./seeds/seedTestAccount");
+
 const connectDB = async () => {
   let uri = process.env.MONGO_URI;
+  let isInMemory = false;
   if (!uri) {
     if (process.env.NODE_ENV === "production") {
       throw new Error("MONGO_URI is required in production");
@@ -48,10 +51,12 @@ const connectDB = async () => {
     const { MongoMemoryServer } = require("mongodb-memory-server");
     const mongod = await MongoMemoryServer.create();
     uri = mongod.getUri();
+    isInMemory = true;
     console.log("Using in-memory MongoDB:", uri);
   }
   await mongoose.connect(uri);
   console.log("MongoDB connected successfully");
+  if (isInMemory) await seedDevData();
 };
 
 connectDB().catch((err) => console.error("MongoDB connection error:", err));
