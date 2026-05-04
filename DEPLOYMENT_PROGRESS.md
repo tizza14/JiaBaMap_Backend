@@ -45,14 +45,40 @@ Database     -> MongoDB Atlas
 - [x] Backend `app.js` syntax check passes.
 - [x] Backend `socketConfig.js` syntax check passes.
 - [x] Docker Compose Nginx config can be expanded with `docker compose config`.
+- [x] Frontend production build re-verified after all security/feature changes — 0 errors, 297 modules (2026-05-04).
+- [x] Backend Jest test suite: 6/6 tests pass in `__test__/restaurants.test.js` (2026-05-04).
+
+### Code Changes Since Last Verification (2026-05-04)
+
+**Security fixes (backend)**
+- `routes/users.js` — `authMiddleware` added to update/favorites routes
+- `controllers/userController.js` — ownership check + field whitelist in `updateProfile`; ownership checks in `addFavorites` / `delFavorites`
+- `routes/order.js` — `authMiddleware` added to all customer-facing routes
+- `controllers/orderController.js` — ownership checks in `getOrders`, `getOrderDetails`, `updateOrder`, `deleteOrder`; `createOrder` now uses `req.user.id` instead of `req.body.customerId`
+- `routes/comments.js` — `authMiddleware` added to `POST /`, `PUT /:id`, `DELETE /:id`, `PUT /likes/:id`
+- `controllers/commentsController.js` — ownership checks in `updateComment` / `deleteComment`; `createComment` and `updateLikes` use `req.user.id`
+- `routes/articlelist.js` — `authMiddleware` added to all write routes (draft, publish, patch, delete, like, comment, reply)
+
+**Bug fixes (frontend)**
+- `Cart.vue` — `getOrders` / `delOrder` now send `Authorization: Bearer` header
+- `StoreCartView.vue` — removed `customerId` from POST body (backend now takes it from token)
+- `components/userProfile/UserSettings.vue` — added missing `handleImageError`
+- `components/userProfile/KeepList.vue` — `storeToRefs`, `Promise.allSettled`, optional chaining fixes
+- `stores/authStore.js` — `logout` clears `userId`, `getUserdata` wrapped in try-catch, JWT expiry check on load
+
+**Feature improvements (frontend)**
+- `components/RestaurantCard.vue` — "顯示更多" pagination (+10), `@error` fallback on images, loading spinner per card
+- `stores/keywordStore.js` — `isSearching` ref; search spinner shown in `RestaurantCard` during API call
+- `views/StorePage.vue` — sticky nav tabs with IntersectionObserver, share button (Web Share API + clipboard fallback), dynamic `document.title`, photo grid (up to 9 photos) with lightbox
+- `stores/storePage.js` — `photoIds` exported; `fetchMenu` uses `placeId`-based OR query for backward compat
+- `controllers/menuController.js` — `getAllMenus` supports `?placeId=` with `$or` query
 
 ### Known Issues / Notes
 
-- [ ] Backend Jest test suite currently has existing failures in `__test__/restaurants.test.js`.
 - [ ] Docker image build was not verified because Docker Desktop daemon was not running.
 - [ ] Local Docker config has permission warnings for `C:\Users\mseke\.docker\config.json`.
 - [ ] Git status shows permission warnings for `C:\Users\mseke\.config\git\ignore`.
-- [ ] Atlas connection test currently fails with DNS error: `querySrv ENOTFOUND _mongodb._tcp.cluster0.325ol.mongodb.net`.
+- [ ] Atlas connection test currently fails with DNS error: `querySrv ENOTFOUND _mongodb._tcp.cluster0.325ol.mongodb.net` — verify Atlas cluster host before deploying.
 
 ## Recommended Order
 
