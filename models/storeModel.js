@@ -47,14 +47,6 @@ const storeSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    createAt: {
-      type: Date,
-      default: Date.now,
-    },
-    updateAt: {
-      type: Date,
-      default: Date.now,
-    },
     paymentOptions: {
       type: [String], //e.g. ["online", "cash"]
     },

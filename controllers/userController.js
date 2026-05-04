@@ -16,6 +16,10 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   const id = req.params.id;
 
+  if (req.user.id !== id) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
   try {
     if (!id) {
       res.status(400).json({ message: "Id is required" });
@@ -36,7 +40,11 @@ const updateProfile = async (req, res) => {
       url = `${process.env.GOOGLE_CLOUD_STORAGE_BASE_URL}${bucketName}/${objectName}`;
     }
 
-    const updateFields = { ...req.body };
+    const ALLOWED_FIELDS = ["name", "bio", "birthDate", "profilePicture"];
+    const updateFields = {};
+    for (const key of ALLOWED_FIELDS) {
+      if (req.body[key] !== undefined) updateFields[key] = req.body[key];
+    }
     if (url !== undefined) {
       updateFields.profilePicture = url;
     }
@@ -55,34 +63,45 @@ const updateProfile = async (req, res) => {
 const addFavorites = async (req, res) => {
   const { id } = req.params;
   const { placeId } = req.body;
-  const user = await User.findById(id);
 
-  if (!user) {
-    return res.status(404).json({ message: 'User not found' });
+  if (req.user.id !== id) {
+    return res.status(403).json({ message: "Forbidden" });
   }
-  
-  if (!user.favorites.includes(placeId)) {
-    user.favorites.push(placeId); 
-    await user.save(); 
+
+  try {
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    if (!user.favorites.includes(placeId)) {
+      user.favorites.push(placeId);
+      await user.save();
+    }
+    res.status(200).json({ message: "Restaurant added to favorites", favorites: user.favorites });
+  } catch (err) {
+    res.status(500).json({ message: "Cannot add favorite" });
   }
-  res.status(200).json({ message: 'Restaurant added to favorites', favorites: user.favorites });
 };
 
 const delFavorites = async (req, res) => {
   const { id } = req.params;
   const { placeId } = req.body;
 
-  
-  const user = await User.findById(id);
-
-  if (!user) {
-    return res.status(404).json({ message: 'User not found' });
+  if (req.user.id !== id) {
+    return res.status(403).json({ message: "Forbidden" });
   }
 
-  user.favorites = user.favorites.filter((id) => id !== placeId);
-  await user.save();
-  res.status(200).json({ message: 'Restaurant removed from favorites', favorites: user.favorites });
-  
+  try {
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    user.favorites = user.favorites.filter((fav) => fav !== placeId);
+    await user.save();
+    res.status(200).json({ message: "Restaurant removed from favorites", favorites: user.favorites });
+  } catch (err) {
+    res.status(500).json({ message: "Cannot remove favorite" });
+  }
 }
 
 module.exports = {

@@ -32,6 +32,9 @@ const searchByKeywordAndLocation = async (req, res, _next) => {
   if (!keyword || !lat || !lng) {
     return res.status(400).json({ message: "Missing parameter" });
   }
+  if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lng))) {
+    return res.status(400).json({ message: "Invalid lat/lng" });
+  }
 
   console.log(`[Search Request] keyword: ${keyword}, lat: ${lat}, lng: ${lng}`);
 
