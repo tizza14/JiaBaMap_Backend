@@ -3,6 +3,7 @@ const multer = require("multer");
 const router = express.Router();
 const controller = require("../controllers/commentsController");
 const notificationMiddleware = require("../controllers/middlewares/notificationMiddleWare");
+const { authMiddleware } = require("../controllers/middlewares/authMiddleWare");
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -53,6 +54,7 @@ router.get(
 //新增一筆評論
 router.post(
   "/",
+  authMiddleware,
   notificationMiddleware.notifyOnCommentCreate,
   upload.array("photos", 5),
   controller.createComment,
@@ -78,6 +80,7 @@ router.post(
 //更新一筆評論
 router.put(
   "/:id",
+  authMiddleware,
   upload.array("photos", 5),
   controller.updateComment,
   /* 	
@@ -98,6 +101,7 @@ router.put(
 //刪除一筆評論
 router.delete(
   "/:id",
+  authMiddleware,
   controller.deleteComment,
   /* 	
     #swagger.summary = 'Delete comment'
@@ -118,6 +122,7 @@ router.delete(
 //body直接提供更新後的數字
 router.put(
   "/likes/:id",
+  authMiddleware,
   notificationMiddleware.notifyOnCommentLike,
   controller.updateLikes,
   /* 	

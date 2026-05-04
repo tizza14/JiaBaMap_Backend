@@ -21,7 +21,8 @@ const calculateTotalAmount = async (items) => {
 
 //新增訂單
 const createOrder = async (req, res) => {
-  const { customerId, storeId, pickupTime, items, storeName } = req.body;
+  const { storeId, pickupTime, items, storeName } = req.body;
+  const customerId = req.user.id;
 
   const totalAmount = await calculateTotalAmount(items);
   let order = await Order.findOne({ customerId, storeId, isDeleted: false });
@@ -104,6 +105,9 @@ const createOrder = async (req, res) => {
 //依照使用者id/店家id 取得所有未刪除訂單
 const getOrders = async (req, res) => {
   const { customerId } = req.params;
+  if (req.user.id !== customerId) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
   const filter = {
     isDeleted: false,
     customerId: customerId,
@@ -138,6 +142,9 @@ const getOrderDetails = async (req, res) => {
   const order = await Order.findById(orderId);
   if (!order) {
     return res.status(404).send("訂單未找到");
+  }
+  if (req.user.id !== order.customerId?.toString()) {
+    return res.status(403).json({ message: "Forbidden" });
   }
   const storeId = order.storeId; // 從訂單中提取 storeId
 
@@ -181,6 +188,9 @@ const updateOrder = async (req, res) => {
   if (!order) {
     return res.status(404).json({ message: "訂單不存在" });
   }
+  if (req.user.id !== order.customerId?.toString()) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
   if (pickupTime) {
     updatedFields.pickupTime = new Date(pickupTime);
   }
@@ -219,16 +229,15 @@ const updateOrder = async (req, res) => {
 const deleteOrder = async (req, res) => {
   const { orderId } = req.params;
   try {
-    const order = await Order.findByIdAndUpdate(
-      orderId,
-      { isDeleted: true },
-      { new: true },
-    );
-
+    const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({ message: "訂單不存在" });
     }
-    res.status(200).json({ message: "刪除訂單成功", order });
+    if (req.user.id !== order.customerId?.toString()) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    await Order.findByIdAndUpdate(orderId, { isDeleted: true });
+    res.status(200).json({ message: "刪除訂單成功" });
   } catch (error) {
     res.status(500).json({ message: "刪除訂單發生錯誤，請稍後再試" });
   }

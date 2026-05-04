@@ -40,7 +40,7 @@ const updateProfile = async (req, res) => {
       url = `${process.env.GOOGLE_CLOUD_STORAGE_BASE_URL}${bucketName}/${objectName}`;
     }
 
-    const ALLOWED_FIELDS = ["name", "bio", "birthDate", "profilePicture"];
+    const ALLOWED_FIELDS = ["name", "bio", "birthDate", "profilePicture", "igLink"];
     const updateFields = {};
     for (const key of ALLOWED_FIELDS) {
       if (req.body[key] !== undefined) updateFields[key] = req.body[key];

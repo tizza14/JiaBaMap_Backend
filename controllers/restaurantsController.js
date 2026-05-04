@@ -53,7 +53,7 @@ const searchByKeywordAndLocation = async (req, res, _next) => {
       textQuery: keyword,
       includedType: "restaurant",
       languageCode: "zh-TW",
-      pageSize: 15,
+      pageSize: 20,
       locationBias: {
         circle: {
           center: { latitude: lat, longitude: lng },

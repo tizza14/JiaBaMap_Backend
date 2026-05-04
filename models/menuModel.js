@@ -27,7 +27,10 @@ const menuSchema = new mongoose.Schema({
   storeId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Store",
-    required: true,
+  },
+  placeId: {
+    type: String,
+    index: true,
   },
   itemId: {
     type: Number,

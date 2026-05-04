@@ -1,4 +1,5 @@
 const Menu = require('../models/menuModel');
+const Store = require('../models/storeModel');
 const { uploadPhotos } = require('../utils');
 const multer = require('multer');
 const path = require('path');
@@ -25,12 +26,12 @@ exports.createMenu = async (req, res) => {
   try {
     const { name, description, price, category, storeId } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(storeId)) {
-      return res.status(400).json({ message: "無效的 Store ID！" });
+    if (!name || !price || !category) {
+      return res.status(400).json({ message: "缺少必要欄位！" });
     }
 
-    if (!name || !price || !category || !storeId) {
-      return res.status(400).json({ message: "缺少必要欄位！" });
+    if (storeId && !mongoose.Types.ObjectId.isValid(storeId)) {
+      return res.status(400).json({ message: "無效的 Store ID！" });
     }
 
     const validCategories = ["飲料", "主食", "甜點", "湯品"];
@@ -44,7 +45,10 @@ exports.createMenu = async (req, res) => {
       imageUrl = urls[0];
     }
 
-    const menu = new Menu({ name, description, price, category, storeId, imageUrl });
+    // storeAuthMiddleware 設定 req.store，自動帶入 placeId
+    const placeId = req.store?.placeId || null;
+
+    const menu = new Menu({ name, description, price, category, storeId: storeId || undefined, placeId, imageUrl });
     const savedMenu = await menu.save();
     res.status(200).json(savedMenu);
   } catch (error) {
@@ -53,34 +57,49 @@ exports.createMenu = async (req, res) => {
   }
 };
 
-// 查詢菜單（支援 storeId 直接查詢、名稱/分類/價格篩選、分頁）
+// 查詢菜單（支援 storeId 或 placeId 查詢、名稱/分類/價格篩選、分頁）
 exports.getAllMenus = async (req, res) => {
   try {
-    const { storeId } = req.query;
+    const { storeId, placeId } = req.query;
 
-    if (!storeId) {
-      return res.status(400).json({ message: "缺少 storeId 參數！" });
+    if (!storeId && !placeId) {
+      return res.status(400).json({ message: "缺少 storeId 或 placeId 參數！" });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(storeId)) {
-      return res.status(400).json({ message: "無效的 Store ID！" });
+    let baseCondition;
+    if (placeId) {
+      // 同時比對 placeId 欄位 和 透過 Store 關聯的 storeId（相容舊資料）
+      const store = await Store.findOne({ placeId }).select("_id").lean();
+      const conditions = [{ placeId }];
+      if (store) conditions.push({ storeId: store._id });
+      baseCondition = conditions.length > 1 ? { $or: conditions } : conditions[0];
+    } else {
+      if (!mongoose.Types.ObjectId.isValid(storeId)) {
+        return res.status(400).json({ message: "無效的 Store ID！" });
+      }
+      baseCondition = { storeId: new mongoose.Types.ObjectId(storeId) };
     }
 
-    const filter = { storeId: new mongoose.Types.ObjectId(storeId) };
+    const extraConditions = [];
 
     if (req.query.name) {
-      filter.name = { $regex: decodeURIComponent(req.query.name), $options: "i" };
+      extraConditions.push({ name: { $regex: decodeURIComponent(req.query.name), $options: "i" } });
     }
 
     if (req.query.category) {
-      filter.category = { $regex: new RegExp(req.query.category, "i") };
+      extraConditions.push({ category: { $regex: new RegExp(req.query.category, "i") } });
     }
 
     if (req.query.minPrice || req.query.maxPrice) {
-      filter.price = {};
-      if (req.query.minPrice) filter.price.$gte = parseFloat(req.query.minPrice);
-      if (req.query.maxPrice) filter.price.$lte = parseFloat(req.query.maxPrice);
+      const priceFilter = {};
+      if (req.query.minPrice) priceFilter.$gte = parseFloat(req.query.minPrice);
+      if (req.query.maxPrice) priceFilter.$lte = parseFloat(req.query.maxPrice);
+      extraConditions.push({ price: priceFilter });
     }
+
+    const filter = extraConditions.length
+      ? { $and: [baseCondition, ...extraConditions] }
+      : baseCondition;
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
