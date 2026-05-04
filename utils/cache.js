@@ -1,16 +1,31 @@
+const STALE_WINDOW = 24 * 60 * 60 * 1000; // 過期後仍保留 24 小時供降級使用
+
 class TTLCache {
   constructor() {
     this.store = new Map();
   }
 
   set(key, value, ttlMs) {
-    this.store.set(key, { value, expiresAt: Date.now() + ttlMs });
+    this.store.set(key, {
+      value,
+      expiresAt: Date.now() + ttlMs,
+      staleUntil: Date.now() + ttlMs + STALE_WINDOW,
+    });
   }
 
+  // 正常取值（TTL 內）
   get(key) {
     const entry = this.store.get(key);
     if (!entry) return null;
-    if (Date.now() > entry.expiresAt) {
+    if (Date.now() > entry.expiresAt) return null;
+    return entry.value;
+  }
+
+  // 降級取值（TTL 過期但 staleUntil 未到）
+  getStale(key) {
+    const entry = this.store.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.staleUntil) {
       this.store.delete(key);
       return null;
     }
@@ -25,7 +40,7 @@ class TTLCache {
     setInterval(() => {
       const now = Date.now();
       for (const [key, entry] of this.store.entries()) {
-        if (now > entry.expiresAt) this.store.delete(key);
+        if (now > entry.staleUntil) this.store.delete(key);
       }
     }, intervalMs);
   }
@@ -36,10 +51,9 @@ class RateLimiter {
   constructor(maxRequests, windowMs) {
     this.maxRequests = maxRequests;
     this.windowMs = windowMs;
-    this.store = new Map(); // ip -> { count, resetAt }
+    this.store = new Map();
   }
 
-  // 回傳 true = 允許，false = 超過限制
   check(ip) {
     const now = Date.now();
     const entry = this.store.get(ip);
@@ -69,7 +83,6 @@ class DailyQuota {
     this.count = 0;
     this.resetAt = this._nextMidnight();
 
-    // 每天午夜重置
     setInterval(() => {
       if (Date.now() >= this.resetAt) {
         this.count = 0;
@@ -85,7 +98,6 @@ class DailyQuota {
     return d.getTime();
   }
 
-  // 回傳 true = 還有配額，false = 已用完
   consume() {
     if (this.count >= this.dailyLimit) return false;
     this.count++;
@@ -94,28 +106,27 @@ class DailyQuota {
 
   get used() { return this.count; }
   get limit() { return this.dailyLimit; }
+  get remaining() { return Math.max(0, this.dailyLimit - this.count); }
 }
 
 // ── 匯出實例 ─────────────────────────────────────────────────────────
 const cache = new TTLCache();
 cache.startCleanup();
 
-// 每個 IP 每分鐘最多呼叫次數
 const rateLimiters = {
-  search:    new RateLimiter(15, 60 * 1000),  // 15次/分鐘
-  detail:    new RateLimiter(30, 60 * 1000),  // 30次/分鐘
-  photo:     new RateLimiter(60, 60 * 1000),  // 60次/分鐘（一頁多張圖）
-  staticmap: new RateLimiter(10, 60 * 1000),  // 10次/分鐘
+  search:    new RateLimiter(15, 60 * 1000),
+  detail:    new RateLimiter(30, 60 * 1000),
+  photo:     new RateLimiter(60, 60 * 1000),
+  staticmap: new RateLimiter(10, 60 * 1000),
 };
 
-// 全域每日 Google API 呼叫上限（依據你的 Google Cloud 方案調整）
 const dailyQuota = new DailyQuota(500);
 
 const TTL = {
-  SEARCH:     10 * 60 * 1000,
-  DETAIL:      1 * 60 * 60 * 1000,
-  PHOTO:      24 * 60 * 60 * 1000,
-  STATIC_MAP: 24 * 60 * 60 * 1000,
+  SEARCH:     2 * 60 * 60 * 1000,   // 2 小時（原 10 分鐘）
+  DETAIL:     1 * 60 * 60 * 1000,   // 1 小時
+  PHOTO:     24 * 60 * 60 * 1000,   // 24 小時
+  STATIC_MAP:24 * 60 * 60 * 1000,   // 24 小時
 };
 
 module.exports = { cache, TTL, rateLimiters, dailyQuota };

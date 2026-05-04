@@ -4,22 +4,25 @@ const Store = require("../models/storeModel");
 
 const getIP = (req) => req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.socket.remoteAddress;
 
-// 限速檢查：cache hit 時跳過，只有真正要打 API 才檢查
-const checkLimits = (req, res, limiterKey) => {
-  const ip = getIP(req);
-
-  if (!rateLimiters[limiterKey].check(ip)) {
+// Per-IP 限速（快取 hit 時不會呼叫）
+const checkRateLimit = (req, res, limiterKey) => {
+  if (!rateLimiters[limiterKey].check(getIP(req))) {
     res.status(429).json({ message: "請求過於頻繁，請稍後再試" });
     return false;
   }
-
-  if (!dailyQuota.consume()) {
-    console.warn(`[Quota] 今日 Google API 已達上限 ${dailyQuota.limit} 次`);
-    res.status(503).json({ message: "今日查詢次數已達上限，請明天再試" });
-    return false;
-  }
-
   return true;
+};
+
+// 配額用完時嘗試回傳過期快取（降級）
+const staleFallback = (res, cacheKey) => {
+  const stale = cache.getStale(cacheKey);
+  if (stale) {
+    console.warn(`[Quota] 配額用完，回傳快取資料：${cacheKey}`);
+    res.set("X-Cache-Status", "STALE");
+    return res.json(stale);
+  }
+  console.warn(`[Quota] 今日 Google API 已達上限 ${dailyQuota.limit} 次`);
+  return res.status(503).json({ message: "今日查詢次數已達上限，請明天再試" });
 };
 
 // 搜尋
@@ -37,9 +40,10 @@ const searchByKeywordAndLocation = async (req, res, _next) => {
   const cacheKey = `search:${keyword}:${roundedLat}:${roundedLng}`;
 
   const cached = cache.get(cacheKey);
-  if (cached) return res.json(cached); // cache hit，不計入任何限制
+  if (cached) return res.json(cached);
 
-  if (!checkLimits(req, res, "search")) return;
+  if (!checkRateLimit(req, res, "search")) return;
+  if (!dailyQuota.consume()) return staleFallback(res, cacheKey);
 
   try {
     const body = {
@@ -128,7 +132,8 @@ const getStaticmap = async (req, res, _next) => {
     return;
   }
 
-  if (!checkLimits(req, res, "staticmap")) return;
+  if (!checkRateLimit(req, res, "staticmap")) return;
+  if (!dailyQuota.consume()) return staleFallback(res, cacheKey);
 
   try {
     const response = await axios.get(
@@ -160,7 +165,8 @@ const detailOfRestaurant = async (req, res, _next) => {
   const cached = cache.get(cacheKey);
   if (cached) return res.json(cached);
 
-  if (!checkLimits(req, res, "detail")) return;
+  if (!checkRateLimit(req, res, "detail")) return;
+  if (!dailyQuota.consume()) return staleFallback(res, cacheKey);
 
   try {
     const response = await axios.get(
@@ -181,6 +187,7 @@ const detailOfRestaurant = async (req, res, _next) => {
             "websiteUri",
             "userRatingCount",
             "location",
+            "primaryType",
           ].join(","),
         },
         params: { languageCode: "zh-TW" },
@@ -209,6 +216,7 @@ const detailOfRestaurant = async (req, res, _next) => {
       lat: response.data.location.latitude,
       lng: response.data.location.longitude,
       placeId: id,
+      primaryType: response.data.primaryType ?? null,
     };
 
     cache.set(cacheKey, data, TTL.DETAIL);
@@ -236,7 +244,8 @@ const restaurantPhoto = async (req, res, _next) => {
     return;
   }
 
-  if (!checkLimits(req, res, "photo")) return;
+  if (!checkRateLimit(req, res, "photo")) return;
+  if (!dailyQuota.consume()) return staleFallback(res, cacheKey);
 
   try {
     const decodedPhotoId = decodeURIComponent(photoId);
