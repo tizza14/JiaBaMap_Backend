@@ -3,6 +3,7 @@ const multer = require("multer");
 const router = express.Router();
 const articleController = require("../controllers/articlelistController");
 const notificationMiddleWare = require("../controllers/middlewares/notificationMiddleWare");
+const { authMiddleware } = require("../controllers/middlewares/authMiddleWare");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -13,8 +14,8 @@ const upload = multer({
 router.get("/", articleController.getAllArticles);
 
 // 草稿相關
-router.get("/drafts/:userId", articleController.getDrafts);
-router.post("/draft", articleController.saveDraft);
+router.get("/drafts/:userId", authMiddleware, articleController.getDrafts);
+router.post("/draft", authMiddleware, articleController.saveDraft);
 
 // 已發布（個人）
 router.get("/published/:userId", articleController.getPublishedArticles);
@@ -23,25 +24,25 @@ router.get("/published/:userId", articleController.getPublishedArticles);
 router.get("/:id", articleController.getArticleById);
 
 // 發布文章
-router.post("/", upload.array("photo"), articleController.createArticle);
+router.post("/", authMiddleware, upload.array("photo"), articleController.createArticle);
 
 // 修改已發布食記
-router.patch("/:id", articleController.updateArticle);
+router.patch("/:id", authMiddleware, articleController.updateArticle);
 
 // 刪除食記
-router.delete("/:id", articleController.deleteArticle);
+router.delete("/:id", authMiddleware, articleController.deleteArticle);
 
 // 文章按讚
-router.post("/:id/like", articleController.toggleLike, notificationMiddleWare.notifyOnArticleLike);
+router.post("/:id/like", authMiddleware, articleController.toggleLike, notificationMiddleWare.notifyOnArticleLike);
 
 // 留言
-router.post("/:id/comments", articleController.addComment, notificationMiddleWare.notifyOnArticleCommentCreate);
-router.delete("/:articleId/comments/:commentId", articleController.deleteComment);
-router.post("/:articleId/comments/:commentId/like", articleController.toggleCommentLike, notificationMiddleWare.notifyOnArticleCommentLike);
+router.post("/:id/comments", authMiddleware, articleController.addComment, notificationMiddleWare.notifyOnArticleCommentCreate);
+router.delete("/:articleId/comments/:commentId", authMiddleware, articleController.deleteComment);
+router.post("/:articleId/comments/:commentId/like", authMiddleware, articleController.toggleCommentLike, notificationMiddleWare.notifyOnArticleCommentLike);
 
 // 回覆
-router.post("/:articleId/comments/:commentId/replies", articleController.addReply, notificationMiddleWare.notifyOnArticleReplyCreate);
-router.delete("/:articleId/comments/:commentId/replies/:replyId", articleController.deleteReply);
-router.post("/:articleId/comments/:commentId/replies/:replyId/like", articleController.toggleReplyLike, notificationMiddleWare.notifyOnArticleReplyLike);
+router.post("/:articleId/comments/:commentId/replies", authMiddleware, articleController.addReply, notificationMiddleWare.notifyOnArticleReplyCreate);
+router.delete("/:articleId/comments/:commentId/replies/:replyId", authMiddleware, articleController.deleteReply);
+router.post("/:articleId/comments/:commentId/replies/:replyId/like", authMiddleware, articleController.toggleReplyLike, notificationMiddleWare.notifyOnArticleReplyLike);
 
 module.exports = router;

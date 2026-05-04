@@ -28,19 +28,20 @@ const getCommentsByUser = async (req, res, _next) => {
 //新增一筆評論
 const createComment = async (req, res, next) => {
   try {
-    const { userId, placeId, content, rating } = req.body;
+    const userId = req.user.id;
+    const { placeId, content, rating } = req.body;
 
-    if (!userId || !placeId || !content || !rating) {
+    if (!placeId || !content || !rating) {
       res
         .status(400)
-        .json({ message: "UserId, placeId, content, and rating are required" });
+        .json({ message: "placeId, content, and rating are required" });
       return;
     }
 
     const photoUrls = await uploadPhotos(req.files);
 
     //save
-    const newComment = new Comment({ ...req.body, photos: photoUrls });
+    const newComment = new Comment({ ...req.body, userId, photos: photoUrls });
     const savedComment = await newComment.save();
     
     // 存入 locals 供通知使用
@@ -59,13 +60,19 @@ const updateComment = async (req, res, _next) => {
   const commentId = req.params.id;
 
   try {
-    const { userId, placeId, content, rating } = req.body;
+    const { placeId, content, rating } = req.body;
 
-    if (!userId || !placeId || !content || !rating) {
+    if (!placeId || !content || !rating) {
       res
         .status(400)
-        .json({ message: "UserId, placeId, content, and rating are required" });
+        .json({ message: "placeId, content, and rating are required" });
       return;
+    }
+
+    const existing = await Comment.findById(commentId);
+    if (!existing) return res.status(404).json({ message: "Comment not found" });
+    if (existing.userId?.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden" });
     }
 
     const photoUrls = await uploadPhotos(req.files);
@@ -74,11 +81,11 @@ const updateComment = async (req, res, _next) => {
       commentId,
       {
         ...req.body,
+        userId: existing.userId,
         photos: photoUrls,
         updatedAt: new Date(),
       },
       { new: true },
-      //回傳已更新的結果
     );
     res.json(comment);
   } catch (err) {
@@ -92,6 +99,12 @@ const deleteComment = async (req, res, _next) => {
   const commentId = req.params.id;
 
   try {
+    const existing = await Comment.findById(commentId);
+    if (!existing) return res.status(404).json({ message: "Comment not found" });
+    if (existing.userId?.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
     await Comment.findByIdAndUpdate(commentId, {
       isDeleted: true,
       updatedAt: new Date(),
@@ -105,8 +118,8 @@ const deleteComment = async (req, res, _next) => {
 //更新評論讚數
 
 const updateLikes = async (req, res, next) => {
-  const { id: commentId } = req.params; 
-  const { userId } = req.body; 
+  const { id: commentId } = req.params;
+  const userId = req.user.id;
 
   try {
     // 查詢評論
