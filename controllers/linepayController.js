@@ -9,6 +9,14 @@ const FRONTEND_URL = process.env.FRONTEND_URL;
 // 付款請求
 const Payment = async (req, res) => {
   const { packages, orderId } = req.body;
+
+  if (!process.env.CHANNEL_ID || !process.env.CHANNEL_SECRET) {
+    return res.status(400).json({ 
+      error: "Line Pay is not configured on this server.",
+      message: "Please contact administrator to set CHANNEL_ID and CHANNEL_SECRET."
+    });
+  }
+
   try {
     const response = await requestOnlineAPI({
       method: "POST",

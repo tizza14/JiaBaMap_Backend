@@ -84,10 +84,10 @@ Database     -> MongoDB Atlas
 
 ## Phase 1: MongoDB Atlas
 
-- [ ] Create MongoDB Atlas account/project.
-- [ ] Create Atlas cluster.
-- [ ] Create database user, for example `jiabamap_app`.
-- [ ] Configure Network Access.
+- [x] Create MongoDB Atlas account/project.
+- [x] Create Atlas cluster.
+- [x] Create database user, for example `jiabamap_app`.
+- [x] Configure Network Access.
   - Initial deployment can use `0.0.0.0/0`.
   - Tighten this later for production.
 - [x] Get Atlas connection string.
@@ -96,7 +96,7 @@ Database     -> MongoDB Atlas
   - ECS: `jiabamap_ecs`
 - [x] Prepare backend `MONGO_URI` format.
 - [x] Replace `<db_password>` in local/backend deployment env with the real Atlas database password.
-- [ ] Re-copy the MongoDB Atlas Drivers connection string and verify the cluster host.
+- [x] Re-copy the MongoDB Atlas Drivers connection string and verify the cluster host.
 
 Example:
 

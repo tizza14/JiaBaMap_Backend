@@ -21,18 +21,29 @@ async function parseGoogleIdToken(token) {
 }
 
 function createStorage() {
-  const opts = { projectId: process.env.GOOGLE_PROJECT_ID };
-  if (process.env.GOOGLE_CREDENTIALS_JSON) {
-    opts.credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+  try {
+    const opts = { projectId: process.env.GOOGLE_PROJECT_ID };
+    if (process.env.GOOGLE_CREDENTIALS_JSON) {
+      opts.credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+    } else {
+      console.warn("GOOGLE_CREDENTIALS_JSON is missing. Image upload features may fail.");
+    }
+    return new Storage(opts);
+  } catch (error) {
+    console.error("Failed to initialize Google Cloud Storage:", error.message);
+    return null; // Return null so callers can handle the unavailability
   }
-  return new Storage(opts);
 }
 
 async function uploadPhotos(files) {
   const storage = createStorage();
+  if (!storage) {
+    throw new Error("Cloud Storage is not configured correctly.");
+  }
   const photoUrls = [];
   for (const file of files) {
     const bucketName = process.env.BUCKET_NAME;
+    if (!bucketName) throw new Error("BUCKET_NAME is not configured.");
     const fileName = encodeURIComponent(file.originalname);
     const objectName = `restaurant/comment/${fileName}`;
     await storage.bucket(bucketName).file(objectName).save(file.buffer);
@@ -44,9 +55,13 @@ async function uploadPhotos(files) {
 
 async function uploadMenuPhotos(files) {
   const storage = createStorage();
+  if (!storage) {
+    throw new Error("Cloud Storage is not configured correctly.");
+  }
   const photoUrls = [];
   for (const file of files) {
     const bucketName = process.env.BUCKET_NAME;
+    if (!bucketName) throw new Error("BUCKET_NAME is not configured.");
     const fileName = encodeURIComponent(file.originalname);
     const objectName = `store/menu/${fileName}`;
     await storage.bucket(bucketName).file(objectName).save(file.buffer);

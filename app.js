@@ -127,6 +127,15 @@ app.use("/cart", cartRouter);
 
 if (require.main === module) {
   const port = process.env.PORT || 3200;
+
+  // Startup Environment Checks
+  const essentialVars = ["JWT_SECRET", "API_KEY", "MONGO_URI"];
+  essentialVars.forEach((v) => {
+    if (!process.env[v]) {
+      console.warn(`WARNING: Essential environment variable "${v}" is missing!`);
+    }
+  });
+
   server
     .listen(port, () => {
       console.log(`Server is running on port ${port}`);
