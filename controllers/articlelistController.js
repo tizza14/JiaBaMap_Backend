@@ -147,6 +147,7 @@ exports.getDrafts = async (req, res) => {
       .select('title restaurantName updatedAt createdAt _id')
       .sort({ updatedAt: -1 });
 
+    res.set('Cache-Control', 'no-store');
     res.json(drafts);
   } catch (error) {
     res.status(500).json({ message: error.message });
