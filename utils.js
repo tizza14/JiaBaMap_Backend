@@ -11,6 +11,10 @@ function generateToken(payload) {
 }
 
 async function parseGoogleIdToken(token) {
+  if (!googleClientId) {
+    throw new Error("GOOGLE_CLIENT_ID is not configured.");
+  }
+
   const client = new OAuth2Client();
   const ticket = await client.verifyIdToken({
     idToken: token,

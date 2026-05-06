@@ -10,37 +10,29 @@ const upload = multer({
   limits: { fileSize: 4 * 1024 * 1024 },
 });
 
-// 公開讀取（支援分頁、排序 ?page=1&limit=10&sortBy=likes）
+// Public article reads
 router.get("/", articleController.getAllArticles);
+router.get("/published/:userId", articleController.getPublishedArticles);
+router.get("/:id", articleController.getArticleById);
 
-// 草稿相關
+// Drafts
 router.get("/drafts/:userId", authMiddleware, articleController.getDrafts);
 router.post("/draft", authMiddleware, articleController.saveDraft);
 
-// 已發布（個人）
-router.get("/published/:userId", articleController.getPublishedArticles);
-
-// 取得單篇
-router.get("/:id", articleController.getArticleById);
-
-// 發布文章
+// Article writes
 router.post("/", authMiddleware, upload.array("photo"), articleController.createArticle);
-
-// 修改已發布食記
 router.patch("/:id", authMiddleware, articleController.updateArticle);
-
-// 刪除食記
 router.delete("/:id", authMiddleware, articleController.deleteArticle);
 
-// 文章按讚
+// Article likes
 router.post("/:id/like", authMiddleware, articleController.toggleLike, notificationMiddleWare.notifyOnArticleLike);
 
-// 留言
+// Comments
 router.post("/:id/comments", authMiddleware, articleController.addComment, notificationMiddleWare.notifyOnArticleCommentCreate);
 router.delete("/:articleId/comments/:commentId", authMiddleware, articleController.deleteComment);
 router.post("/:articleId/comments/:commentId/like", authMiddleware, articleController.toggleCommentLike, notificationMiddleWare.notifyOnArticleCommentLike);
 
-// 回覆
+// Replies
 router.post("/:articleId/comments/:commentId/replies", authMiddleware, articleController.addReply, notificationMiddleWare.notifyOnArticleReplyCreate);
 router.delete("/:articleId/comments/:commentId/replies/:replyId", authMiddleware, articleController.deleteReply);
 router.post("/:articleId/comments/:commentId/replies/:replyId/like", authMiddleware, articleController.toggleReplyLike, notificationMiddleWare.notifyOnArticleReplyLike);

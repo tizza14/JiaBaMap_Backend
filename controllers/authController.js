@@ -27,10 +27,15 @@ const verifyToken = (req, res, next) => {
 // ── 一般用戶：Google OAuth ──────────────────────────────────────────
 const googleLogin = async (req, res) => {
   const token = req.body.credential;
+  if (!token) {
+    return res.status(400).json({ message: "Google credential is required" });
+  }
+
   let payload;
   try {
     payload = await parseGoogleIdToken(token);
   } catch (err) {
+    console.error("Google token verification failed:", err.message);
     return res.status(401).json({ message: "Google 驗證失敗" });
   }
 
@@ -38,6 +43,9 @@ const googleLogin = async (req, res) => {
   const email = payload["email"];
   const name = payload["name"];
   const profilePicture = payload["picture"];
+  if (!googleId || !email) {
+    return res.status(401).json({ message: "Google 帳號資料不完整" });
+  }
 
   let user = await User.findOne({ googleId });
   if (!user) {

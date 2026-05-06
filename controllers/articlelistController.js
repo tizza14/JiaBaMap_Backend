@@ -4,7 +4,9 @@ const { createStorage } = require('../utils');
 // 上傳圖片到 GCS
 async function uploadArticlePhotos(files) {
   const storage = createStorage();
+  if (!storage) throw new Error("Cloud Storage 尚未設定，無法上傳圖片");
   const bucketName = process.env.BUCKET_NAME;
+  if (!bucketName) throw new Error("BUCKET_NAME 未設定");
   const photoUrls = [];
   for (const file of files) {
     const fileName = `article/${Date.now()}_${encodeURIComponent(file.originalname)}`;
@@ -18,8 +20,8 @@ async function uploadArticlePhotos(files) {
 exports.getAllArticles = async (req, res) => {
   try {
     const userId = req.query.userId;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
     const sortBy = req.query.sortBy === 'likes' ? { likesCount: -1 } : { createdAt: -1 };
     const skip = (page - 1) * limit;
 
@@ -63,10 +65,11 @@ exports.getAllArticles = async (req, res) => {
 
 // 發布文章（修正 race condition：先 save 再回應）
 exports.createArticle = async (req, res) => {
-  const { userId, placeId, title, content, user, userPhoto, eatdate, restaurantName } = req.body;
+  const userId = req.user.id;
+  const { placeId, title, content, user, userPhoto, eatdate, restaurantName } = req.body;
 
-  if (!userId || !user || !restaurantName || !title || !content || !eatdate) {
-    return res.status(400).json({ message: "userId、用戶名稱、餐廳名稱、標題、內容、用餐日期為必填" });
+  if (!user || !restaurantName || !title || !content || !eatdate) {
+    return res.status(400).json({ message: "用戶名稱、餐廳名稱、標題、內容、用餐日期為必填" });
   }
 
   try {
@@ -95,11 +98,8 @@ exports.createArticle = async (req, res) => {
 // 儲存草稿至資料庫（建立或更新）
 exports.saveDraft = async (req, res) => {
   try {
-    const { userId, draftId, title, content, restaurantName, placeId, eatdate, user, userPhoto } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ message: "userId 為必填" });
-    }
+    const userId = req.user.id;
+    const { draftId, title, content, restaurantName, placeId, eatdate, user, userPhoto } = req.body;
 
     if (draftId) {
       const draft = await Article.findOneAndUpdate(

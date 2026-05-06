@@ -5,7 +5,8 @@ const { Storage } = require("@google-cloud/storage");
 const getProfile = async (req, res) => {
   const { id } = req.params;
   try {
-    const userProfile = await User.findById({ _id: id });
+    const userProfile = await User.findById({ _id: id }).select('-password');
+    if (!userProfile) return res.status(404).json({ message: "User not found" });
     res.json(userProfile);
   } catch (err) {
     res.status(500).json({ message: "Cannot get userProfile" });

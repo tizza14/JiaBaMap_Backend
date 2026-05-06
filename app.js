@@ -29,10 +29,10 @@ const linepayRouter = require("./routes/linepay");
 const cartRouter = require("./routes/cart");
 
 const parseAllowedOrigins = () => {
-  const origins = process.env.FRONTEND_URLS || process.env.FRONTEND_URL;
-  return (origins || "http://localhost:5173")
-    .split(",")
-    .map((origin) => origin.trim())
+  const main = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || "http://localhost:5173";
+  const extra = process.env.CORS_EXTRA_ORIGINS || "";
+  return [...main.split(","), ...extra.split(",")]
+    .map((o) => o.trim())
     .filter(Boolean);
 };
 
@@ -59,7 +59,10 @@ const connectDB = async () => {
   if (isInMemory) await seedDevData();
 };
 
-connectDB().catch((err) => console.error("MongoDB connection error:", err));
+let dbReady = false;
+connectDB()
+  .then(() => { dbReady = true; })
+  .catch((err) => console.error("MongoDB connection error:", err));
 
 const app = express();
 const server = http.createServer(app);
@@ -109,7 +112,12 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+  const dbState = mongoose.connection.readyState; // 0=disconnected 1=connected 2=connecting
+  if (dbState === 1) {
+    return res.status(200).json({ status: "ok" });
+  }
+  const stateLabel = ["disconnected", "connected", "connecting", "disconnecting"][dbState] ?? "unknown";
+  return res.status(503).json({ status: "error", db: stateLabel });
 });
 
 app.use("/restaurants", restaurantsRouter);

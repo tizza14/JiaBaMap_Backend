@@ -9,7 +9,7 @@ const {
   storeRegister,
 } = require("../controllers/authController");
 
-// 一般用戶
+// User auth
 router.post("/user/login/google", googleLogin);
 router.post("/user/register", userRegister);
 router.post("/user/login", userLogin);
@@ -17,7 +17,7 @@ router.post("/user/logout", verifyToken, (req, res) => {
   res.json({ message: "Logout successfully!" });
 });
 
-// 店家
+// Store auth
 router.post("/store/register", storeRegister);
 router.post("/store/login", storeLogin);
 

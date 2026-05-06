@@ -7,4 +7,5 @@ npm-debug.log*
 coverage
 __test__
 swagger-output.json
-README.md
+*.md
+render.yaml
